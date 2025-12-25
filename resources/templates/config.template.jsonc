@@ -1,0 +1,21 @@
+{
+  "ThirdPerson": {
+    // Custom command to toggle third-person view
+    "CustomTPCommand": "tp",
+    // Permission required to use third-person view
+    // Leave empty ("") to allow all players to use it
+    "UseTpPermission": "thirdperson.use",
+    // Damage mode: "back" (block damage dealt from behind your character), "none" (damage completely blocked with message)
+    "DamageMode": "back",
+    // Distance of the third-person camera from the player
+    "ThirdPersonDistance": 100.0,
+    // Height offset of the third-person camera
+    "ThirdPersonHeight": 80.0,
+    // Enable smooth camera movement interpolation
+    "UseSmoothCam": true,
+    // Speed of smooth camera movement (0.1 = slow, 1.0 = instant)
+    "SmoothCameraSpeed": 0.3,
+    // Enable warnings when players try to knife attack in third-person view (README ACK)
+    "EnableKnifeWarnings": true
+  }
+}
