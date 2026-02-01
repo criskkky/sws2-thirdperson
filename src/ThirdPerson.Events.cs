@@ -57,11 +57,17 @@ public partial class ThirdPerson
         // Cleanup all cameras when map unloads (map change destroys all entities)
         foreach (var camera in _thirdPersonPool.Values)
         {
-            camera.Despawn();
+            if (camera.IsValid)
+            {
+                camera.Despawn();
+            }
         }
         foreach (var camera in _smoothThirdPersonPool.Values)
         {
-            camera.Despawn();
+            if (camera.IsValid)
+            {
+                camera.Despawn();
+            }
         }
 
         _thirdPersonPool.Clear();

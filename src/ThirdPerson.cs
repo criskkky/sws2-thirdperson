@@ -86,11 +86,17 @@ public partial class ThirdPerson : BasePlugin {
     // Cleanup all cameras
     foreach (var kvp in _thirdPersonPool)
     {
-      kvp.Value.Despawn();
+      if (kvp.Value.IsValid)
+      {
+        kvp.Value.Despawn();
+      }
     }
     foreach (var kvp in _smoothThirdPersonPool)
     {
-      kvp.Value.Despawn();
+      if (kvp.Value.IsValid)
+      {
+        kvp.Value.Despawn();
+      }
     }
 
     _thirdPersonPool.Clear();
@@ -116,8 +122,11 @@ public partial class ThirdPerson : BasePlugin {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
       var camera = kvp.Value;
 
-      if (player == null || camera == null)
+      if (player == null || camera == null || !camera.IsValid)
+      {
+        _smoothThirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
+      }
 
       UpdateCameraSmooth(camera, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight, Config.SmoothCameraSpeed);
     }
@@ -128,8 +137,11 @@ public partial class ThirdPerson : BasePlugin {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
       var camera = kvp.Value;
 
-      if (player == null || camera == null)
+      if (player == null || camera == null || !camera.IsValid)
+      {
+        _thirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
+      }
 
       UpdateCamera(camera, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight);
     }
@@ -148,13 +160,19 @@ public partial class ThirdPerson : BasePlugin {
     // Remove smooth camera
     if (_smoothThirdPersonPool.TryRemove(playerIndex, out var smoothCamera))
     {
-      smoothCamera.Despawn();
+      if (smoothCamera.IsValid)
+      {
+        smoothCamera.Despawn();
+      }
     }
 
     // Remove default camera
     if (_thirdPersonPool.TryRemove(playerIndex, out var camera))
     {
-      camera.Despawn();
+      if (camera.IsValid)
+      {
+        camera.Despawn();
+      }
     }
 
     // Reset camera services to first person
