@@ -5,5 +5,7 @@
   "tp.no_permission": "You don't have permission to use this command.",
   "tp.must_be_alive": "You must be alive to use this command.",
   "tp.damage_disabled": "You must disable third-person view to deal damage.",
-  "tp.knife_warning": "Knife attacks may have issues in third-person view."
+  "tp.knife_warning": "Knife attacks may have issues in third person.",
+  "tp.not_ready": "Cannot create camera - player not ready.",
+  "tp.camera_error": "Failed to create camera."
 }

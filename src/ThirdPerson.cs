@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
+using SwiftlyS2.Shared.Schemas;
 using System.Collections.Concurrent;
 
 namespace ThirdPerson;
@@ -122,8 +123,9 @@ public partial class ThirdPerson : BasePlugin {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
       var camera = kvp.Value;
 
-      if (player == null || camera == null || !camera.IsValid)
+      if (player == null || !player.IsValid || camera == null || !camera.IsValid)
       {
+        SafeDespawn(camera);
         _smoothThirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
       }
@@ -137,8 +139,9 @@ public partial class ThirdPerson : BasePlugin {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
       var camera = kvp.Value;
 
-      if (player == null || camera == null || !camera.IsValid)
+      if (player == null || !player.IsValid || camera == null || !camera.IsValid)
       {
+        SafeDespawn(camera);
         _thirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
       }

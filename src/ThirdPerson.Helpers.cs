@@ -2,6 +2,7 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Schemas;
 
 namespace ThirdPerson;
 
@@ -168,5 +169,44 @@ public partial class ThirdPerson
             Y = from.Y + (to.Y - from.Y) * t,
             Z = from.Z + (to.Z - from.Z) * t
         };
+    }
+
+    // Thread-safe spawn and despawn methods for camera entities
+    private CDynamicProp? SafeSpawnDynamicProp(string designerName)
+    {
+        var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
+        if (entity != null)
+        {
+            entity.DispatchSpawn();
+            return entity as CDynamicProp;
+        }
+        return null;
+    }
+
+    private CPointCamera? SafeSpawnPointCamera(string designerName)
+    {
+        var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
+        if (entity != null)
+        {
+            entity.DispatchSpawn();
+            return entity as CPointCamera;
+        }
+        return null;
+    }
+
+    private void SafeDespawn(CDynamicProp? camera)
+    {
+        if (camera != null && camera.IsValid)
+        {
+            Core.Scheduler.NextWorldUpdate(() => camera.Despawn());
+        }
+    }
+
+    private void SafeDespawn(CPointCamera? camera)
+    {
+        if (camera != null && camera.IsValid)
+        {
+            Core.Scheduler.NextWorldUpdate(() => camera.Despawn());
+        }
     }
 }

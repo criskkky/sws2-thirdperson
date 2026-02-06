@@ -8,25 +8,35 @@ namespace ThirdPerson;
 
 public partial class ThirdPerson
 {
+    private bool IsSafeToCreateCamera(IPlayer player)
+    {
+        if (player == null || !player.IsValid) return false;
+        if (player.Pawn == null || !player.Pawn.IsValid) return false;
+        if (player.Pawn.CameraServices == null) return false;
+        return true;
+    }
+
     private void ToggleDefaultThirdPerson(IPlayer player)
     {
         int playerIndex = player.PlayerID;
 
         if (!_thirdPersonPool.ContainsKey(playerIndex))
         {
-            // Create camera entity using designer name (like AdminESP does)
-            var cameraProp = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>("prop_dynamic");
-            
-            if (cameraProp == null)
+            if (!IsSafeToCreateCamera(player))
             {
-                // Error: Failed to create CDynamicProp camera entity
-                player.SendChat(" [DEBUG] Failed to create camera entity!");
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.not_ready"]}");
                 return;
             }
 
-
-            cameraProp.DispatchSpawn();
+            // Create camera entity using designer name (like AdminESP does)
+            var cameraProp = SafeSpawnDynamicProp("prop_dynamic");
             
+            if (cameraProp == null)
+            {
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
+                return;
+            }
+
             // Make it invisible by setting alpha to 0
             cameraProp.Render = new SwiftlyS2.Shared.Natives.Color(255, 255, 255, 0);
 
@@ -44,8 +54,7 @@ public partial class ThirdPerson
             }
             else
             {
-                // ERROR: CameraServices is null!
-                player.SendChat(" [DEBUG] CameraServices is null!");
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
             }
 
             _thirdPersonPool.TryAdd(playerIndex, cameraProp);
@@ -76,17 +85,20 @@ public partial class ThirdPerson
 
         if (!_smoothThirdPersonPool.ContainsKey(playerIndex))
         {
-            // Activate smooth third person
-            var camera = Core.EntitySystem.CreateEntityByDesignerName<CPointCamera>("point_camera");
-
-            if (camera == null)
+            if (!IsSafeToCreateCamera(player))
             {
-                // Error: Failed to create CPointCamera entity
-                player.SendChat(" [DEBUG] Failed to create smooth camera entity!");
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.not_ready"]}");
                 return;
             }
 
-            camera.DispatchSpawn();
+            // Activate smooth third person
+            var camera = SafeSpawnPointCamera("point_camera");
+
+            if (camera == null)
+            {
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
+                return;
+            }
 
             // Calculate initial position
             Vector initialPos = CalculatePositionInFront(player, -Config.ThirdPersonDistance, Config.ThirdPersonHeight);
