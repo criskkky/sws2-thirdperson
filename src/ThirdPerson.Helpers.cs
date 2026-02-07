@@ -7,16 +7,16 @@ namespace ThirdPerson;
 
 public partial class ThirdPerson
 {
-    // Updates the position of a dynamic prop camera (instant positioning).
+    // Updates the position of a point camera (instant positioning).
     // Used for the default third-person camera mode.
     private static void UpdateCamera(
-        CDynamicProp cameraProp,
+        CPointCamera camera,
         IPlayer player,
         ISwiftlyCore core,
         float desiredDistance,
         float verticalOffset)
     {
-        if (player?.Pawn == null || cameraProp == null)
+        if (player?.Pawn == null || camera == null)
             return;
 
         var pawn = player.Pawn;
@@ -26,7 +26,7 @@ public partial class ThirdPerson
         Vector cameraPos = CalculateSafeCameraPosition(player, core, desiredDistance, verticalOffset);
         QAngle cameraAngle = pawn.V_angle;
 
-        cameraProp.Teleport(cameraPos, cameraAngle, Vector.Zero);
+        camera.Teleport(cameraPos, cameraAngle, Vector.Zero);
     }
 
     // Updates the position of a point camera with smooth interpolation.
@@ -170,18 +170,56 @@ public partial class ThirdPerson
         };
     }
 
-    // Thread-safe spawn and despawn methods for camera entities
-    private CDynamicProp? SafeSpawnDynamicProp(string designerName)
+    // Checks if there's a wall in front of the player within specified distance.
+    // Returns true if a wall is detected, preventing third person activation to avoid model invisibility.
+    // Uses player origin to handle irregular walls at different heights.
+    private bool IsWallInFront(IPlayer player, float minWallDistance = 50f)
     {
-        var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
-        if (entity != null)
+        if (player?.Pawn?.AbsOrigin == null)
+            return false;
+
+        var pawn = player.Pawn;
+        Vector pawnPos = pawn.AbsOrigin ?? Vector.Zero;
+        
+        // Calculate forward direction from player's view angles (horizontal direction only, no pitch)
+        float yaw = pawn.V_angle.Yaw * (float)Math.PI / 180f;
+        var forwardDir = new Vector(
+            MathF.Cos(yaw),
+            MathF.Sin(yaw),
+            0  // Keep Z at 0 to trace horizontally (ignores floor/ceiling)
+        );
+        
+        // Use player origin (center of body) to detect walls at any height
+        // This handles irregular walls better than eye position alone
+        Vector startPos = pawnPos + new Vector(0, 0, 32f); // Mid-body height
+        Vector targetPos = startPos + forwardDir * 200f;
+        
+        // Perform ray trace using SimpleTrace
+        CGameTrace trace = new();
+        Core.Trace.SimpleTrace(
+            startPos,                                   // Start from player body center
+            targetPos,                                  // End at check distance forward
+            RayType_t.RAY_TYPE_LINE,                   // Use line ray for precise collision
+            RnQueryObjectSet.All,                      // Consider all objects
+            MaskTrace.Solid | MaskTrace.WorldGeometry | MaskTrace.Window, // Only solid walls, not players
+            0,                                         // interactExclude
+            0,                                         // interactAs
+            CollisionGroup.Default,                    // collision group
+            ref trace,                                 // Output trace result
+            pawn                                       // Filter out the player itself
+        );
+        
+        // Return true only if hit something VERY close using absolute distance
+        if (trace.DidHit)
         {
-            entity.DispatchSpawn();
-            return entity as CDynamicProp;
+            float actualDistance = trace.Distance;
+            return actualDistance < minWallDistance;
         }
-        return null;
+        
+        return false;
     }
 
+    // Thread-safe spawn and despawn methods for camera entities
     private CPointCamera? SafeSpawnPointCamera(string designerName)
     {
         var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
@@ -191,14 +229,6 @@ public partial class ThirdPerson
             return entity as CPointCamera;
         }
         return null;
-    }
-
-    private void SafeDespawn(CDynamicProp? camera)
-    {
-        if (camera != null && camera.IsValid)
-        {
-            Core.Scheduler.NextWorldUpdate(() => camera.Despawn());
-        }
     }
 
     private void SafeDespawn(CPointCamera? camera)

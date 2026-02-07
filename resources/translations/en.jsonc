@@ -7,5 +7,6 @@
   "tp.damage_disabled": "You must disable third-person view to deal damage.",
   "tp.knife_warning": "Knife attacks may have issues in third person.",
   "tp.not_ready": "Cannot create camera - player not ready.",
-  "tp.camera_error": "Failed to create camera."
+  "tp.camera_error": "Failed to create camera.",
+  "tp.too_close_wall": "You are too close to a wall. Move back a bit to activate."
 }

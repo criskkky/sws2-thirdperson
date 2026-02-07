@@ -26,27 +26,31 @@ public partial class ThirdPerson
                 return;
             }
 
-            // Create camera entity using designer name (like AdminESP does)
-            var cameraProp = SafeSpawnDynamicProp("prop_dynamic");
+            // Check if player is too close to a front wall
+            if (IsWallInFront(player, 40f))
+            {
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.too_close_wall"]}");
+                return;
+            }
+
+            // Create camera entity using point_camera instead of prop_dynamic
+            var camera = SafeSpawnPointCamera("point_camera");
             
-            if (cameraProp == null)
+            if (camera == null)
             {
                 player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
                 return;
             }
 
-            // Make it invisible by setting alpha to 0
-            cameraProp.Render = new SwiftlyS2.Shared.Natives.Color(255, 255, 255, 0);
-
             // Calculate initial position
             Vector initialPos = CalculatePositionInFront(player, -Config.ThirdPersonDistance, Config.ThirdPersonHeight);
             QAngle viewAngle = player.Pawn?.V_angle ?? new QAngle();
 
-            cameraProp.Teleport(initialPos, viewAngle, Vector.Zero);
+            camera.Teleport(initialPos, viewAngle, Vector.Zero);
 
             if (player.Pawn?.CameraServices != null)
             {
-                var cameraHandle = Core.EntitySystem.GetRefEHandle(cameraProp);
+                var cameraHandle = Core.EntitySystem.GetRefEHandle(camera);
                 player.Pawn.CameraServices.ViewEntity.Raw = cameraHandle.Raw;
                 player.Pawn.CameraServices.ViewEntityUpdated();
             }
@@ -55,7 +59,7 @@ public partial class ThirdPerson
                 player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
             }
 
-            _thirdPersonPool.TryAdd(playerIndex, cameraProp);
+            _thirdPersonPool.TryAdd(playerIndex, camera);
             
             player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.activated"]}");
         }
@@ -86,6 +90,13 @@ public partial class ThirdPerson
             if (!IsSafeToCreateCamera(player))
             {
                 player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.not_ready"]}");
+                return;
+            }
+
+            // Check if player is too close to a front wall
+            if (IsWallInFront(player, 40f))
+            {
+                player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.too_close_wall"]}");
                 return;
             }
 

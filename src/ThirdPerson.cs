@@ -17,7 +17,7 @@ public partial class ThirdPerson : BasePlugin {
   private Guid? _customCommandGuid = null;
 
   // Camera entity pools - thread-safe collections for managing active cameras
-  private readonly ConcurrentDictionary<int, CDynamicProp> _thirdPersonPool = new();
+  private readonly ConcurrentDictionary<int, CPointCamera> _thirdPersonPool = new();
   private readonly ConcurrentDictionary<int, CPointCamera> _smoothThirdPersonPool = new();
 
   // Knife warning counter per player (limit to 3 warnings per player)
