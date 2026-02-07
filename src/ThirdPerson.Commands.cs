@@ -1,5 +1,5 @@
-using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Commands;
 
 namespace ThirdPerson;
 
@@ -32,6 +32,8 @@ public partial class ThirdPerson
 
     private void HandleThirdPersonToggle(ICommandContext context)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
+
         var player = context.Sender;
         if (player == null) return;
 

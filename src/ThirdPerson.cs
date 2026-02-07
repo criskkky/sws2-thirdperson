@@ -1,12 +1,11 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Configuration;
-using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared.SchemaDefinitions;
-using SwiftlyS2.Shared.Schemas;
-using System.Collections.Concurrent;
 
 namespace ThirdPerson;
 
@@ -31,6 +30,9 @@ public partial class ThirdPerson : BasePlugin {
   // Plugin initialization - called when plugin loads or hot-reloads.
   // Sets up configuration, dependency injection, commands, and event listeners.
   public override void Load(bool hotReload) {
+    // Create convar for enabling/disabling the plugin
+    Core.ConVar.CreateOrFind<bool>("thirdperson_enabled", "Enable/Disable ThirdPerson Plugin", true, SwiftlyS2.Shared.Convars.ConvarFlags.NONE);
+
     // Initialize configuration
     Core.Configuration
         .InitializeWithTemplate("config.jsonc", "config.template.jsonc")
@@ -117,6 +119,8 @@ public partial class ThirdPerson : BasePlugin {
   // Updates camera positions for all players in third-person mode.
   private void OnTick()
   {
+    if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
+
     // Update smooth cameras
     foreach (var kvp in _smoothThirdPersonPool)
     {

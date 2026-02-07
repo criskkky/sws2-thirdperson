@@ -1,8 +1,7 @@
+using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
-using SwiftlyS2.Shared;
-using SwiftlyS2.Shared.Schemas;
 
 namespace ThirdPerson;
 

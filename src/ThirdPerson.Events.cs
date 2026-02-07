@@ -1,9 +1,9 @@
-using SwiftlyS2.Shared.GameEventDefinitions;
-using SwiftlyS2.Shared.Misc;
-using SwiftlyS2.Shared.GameEvents;
-using SwiftlyS2.Shared.SchemaDefinitions;
-using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Events;
+using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.GameEvents;
+using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace ThirdPerson;
 
@@ -12,6 +12,8 @@ public partial class ThirdPerson
     [GameEventHandler(HookMode.Post)]
     public HookResult OnRoundStart(EventRoundStart @event)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return HookResult.Continue;
+
         // Get all currently connected players
         var connectedPlayers = Core.PlayerManager.GetAllPlayers();
         var connectedPlayerIds = new HashSet<int>(connectedPlayers.Select(p => p.PlayerID));
@@ -41,6 +43,8 @@ public partial class ThirdPerson
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDeath(EventPlayerDeath @event)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return HookResult.Continue;
+
         // Get the victim player
         var victim = @event.Accessor.GetPlayer("userid");
         
@@ -77,6 +81,8 @@ public partial class ThirdPerson
     [GameEventHandler(HookMode.Post)]
     public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return HookResult.Continue;
+
         // Get the disconnected player directly from the event
         var player = @event.UserIdPlayer;
         
@@ -91,6 +97,8 @@ public partial class ThirdPerson
     [GameEventHandler(HookMode.Post)]
     public HookResult OnWeaponFire(EventWeaponFire @event)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return HookResult.Continue;
+
         // Check if the weapon fired is a knife
         if (!@event.Weapon.Contains("knife", StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
@@ -127,6 +135,8 @@ public partial class ThirdPerson
 
     private void OnEntityTakeDamage(IOnEntityTakeDamageEvent @event)
     {
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
+
         // Get victim pawn
         var victimPawn = @event.Entity.As<CCSPlayerPawn>();
         if (victimPawn == null) return;
