@@ -22,18 +22,38 @@ public partial class ThirdPerson
         var disconnectedKeys = _thirdPersonPool.Keys.Where(id => !connectedPlayerIds.Contains(id)).ToList();
         foreach (var playerId in disconnectedKeys)
         {
-            if (_thirdPersonPool.TryRemove(playerId, out var camera))
+            if (_thirdPersonPool.TryRemove(playerId, out var cameraHandle))
             {
-                camera.Despawn();
+                if (cameraHandle.IsValid && cameraHandle.Value != null)
+                {
+                    Core.Scheduler.NextWorldUpdate(() =>
+                    {
+                        // Revalidate before despawning
+                        if (cameraHandle.IsValid && cameraHandle.Value != null)
+                        {
+                            cameraHandle.Value.Despawn();
+                        }
+                    });
+                }
             }
         }
 
         var disconnectedSmoothKeys = _smoothThirdPersonPool.Keys.Where(id => !connectedPlayerIds.Contains(id)).ToList();
         foreach (var playerId in disconnectedSmoothKeys)
         {
-            if (_smoothThirdPersonPool.TryRemove(playerId, out var camera))
+            if (_smoothThirdPersonPool.TryRemove(playerId, out var cameraHandle))
             {
-                camera.Despawn();
+                if (cameraHandle.IsValid && cameraHandle.Value != null)
+                {
+                    Core.Scheduler.NextWorldUpdate(() =>
+                    {
+                        // Revalidate before despawning
+                        if (cameraHandle.IsValid && cameraHandle.Value != null)
+                        {
+                            cameraHandle.Value.Despawn();
+                        }
+                    });
+                }
             }
         }
 
@@ -48,7 +68,7 @@ public partial class ThirdPerson
         // Get the victim player
         var victim = @event.Accessor.GetPlayer("userid");
         
-        if (victim != null)
+        if (victim != null && victim.IsValid)
         {
             CleanupPlayer(victim);
         }
@@ -59,18 +79,33 @@ public partial class ThirdPerson
     private void OnMapUnload(IOnMapUnloadEvent @event)
     {
         // Cleanup all cameras when map unloads (map change destroys all entities)
-        foreach (var camera in _thirdPersonPool.Values)
+        // Using scheduler for safe entity operations
+        foreach (var cameraHandle in _thirdPersonPool.Values)
         {
-            if (camera.IsValid)
+            if (cameraHandle.IsValid && cameraHandle.Value != null)
             {
-                camera.Despawn();
+                Core.Scheduler.NextWorldUpdate(() =>
+                {
+                    // Revalidate before despawning
+                    if (cameraHandle.IsValid && cameraHandle.Value != null)
+                    {
+                        cameraHandle.Value.Despawn();
+                    }
+                });
             }
         }
-        foreach (var camera in _smoothThirdPersonPool.Values)
+        foreach (var cameraHandle in _smoothThirdPersonPool.Values)
         {
-            if (camera.IsValid)
+            if (cameraHandle.IsValid && cameraHandle.Value != null)
             {
-                camera.Despawn();
+                Core.Scheduler.NextWorldUpdate(() =>
+                {
+                    // Revalidate before despawning
+                    if (cameraHandle.IsValid && cameraHandle.Value != null)
+                    {
+                        cameraHandle.Value.Despawn();
+                    }
+                });
             }
         }
 
@@ -86,7 +121,7 @@ public partial class ThirdPerson
         // Get the disconnected player directly from the event
         var player = @event.UserIdPlayer;
         
-        if (player != null)
+        if (player != null && player.IsValid)
         {
             CleanupPlayer(player);
         }
@@ -100,12 +135,12 @@ public partial class ThirdPerson
         if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return HookResult.Continue;
 
         // Check if the weapon fired is a knife
-        if (!@event.Weapon.Contains("knife", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(@event.Weapon) || !@event.Weapon.Contains("knife", StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
 
         // Get the player who fired
         var player = @event.UserIdPlayer;
-        if (player == null)
+        if (player == null || !player.IsValid)
             return HookResult.Continue;
 
         // Check if player is in third person
@@ -137,29 +172,29 @@ public partial class ThirdPerson
     {
         if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
 
-        // Get victim pawn
-        var victimPawn = @event.Entity.As<CCSPlayerPawn>();
-        if (victimPawn == null) return;
+        // Get victim pawn with null checks
+        var victimPawn = @event.Entity?.As<CCSPlayerPawn>();
+        if (victimPawn == null || !victimPawn.IsValid) return;
 
-        if (victimPawn.Controller.Value == null) return;
+        if (!victimPawn.Controller.IsValid || victimPawn.Controller.Value == null) return;
         var victim = victimPawn.Controller.Value.As<CCSPlayerController>();
         if (victim == null) return;
 
-        // Get attacker entity
+        // Get attacker entity with null checks
         var attackerEntity = @event.Info.Attacker.Value;
         if (attackerEntity == null) return;
 
         var attackerPawn = attackerEntity.As<CCSPlayerPawn>();
-        if (attackerPawn == null) return;
+        if (attackerPawn == null || !attackerPawn.IsValid) return;
 
-        if (attackerPawn.Controller.Value == null) return;
+        if (!attackerPawn.Controller.IsValid || attackerPawn.Controller.Value == null) return;
         var attacker = attackerPawn.Controller.Value.As<CCSPlayerController>();
         if (attacker == null) return;
 
-        // Get players
-        var victimPlayer = Core.PlayerManager.GetPlayer((int)victimPawn.Controller.EntityIndex - 1);
-        var attackerPlayer = Core.PlayerManager.GetPlayer((int)attackerPawn.Controller.EntityIndex - 1);
-        if (victimPlayer == null || attackerPlayer == null) return;
+        // Get players from pawns with validation
+        var victimPlayer = Core.PlayerManager.GetPlayerFromPawn(victimPawn);
+        var attackerPlayer = Core.PlayerManager.GetPlayerFromPawn(attackerPawn);
+        if (victimPlayer == null || !victimPlayer.IsValid || attackerPlayer == null || !attackerPlayer.IsValid) return;
 
         // Check if attacker is using third person
         bool attackerInThirdPerson = _thirdPersonPool.ContainsKey(attackerPlayer.PlayerID) || 

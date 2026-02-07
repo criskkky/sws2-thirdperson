@@ -56,10 +56,21 @@ public partial class ThirdPerson
             }
             else
             {
+                // Cleanup camera using scheduler for safety
+                Core.Scheduler.NextWorldUpdate(() =>
+                {
+                    if (camera != null && camera.IsValid)
+                    {
+                        camera.Despawn();
+                    }
+                });
                 player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.camera_error"]}");
+                return;
             }
 
-            _thirdPersonPool.TryAdd(playerIndex, camera);
+            // Store as CHandle for safe long-term reference
+            var handle = Core.EntitySystem.GetRefEHandle(camera);
+            _thirdPersonPool.TryAdd(playerIndex, handle);
             
             player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.activated"]}");
         }
@@ -71,9 +82,19 @@ public partial class ThirdPerson
                 player.Pawn.CameraServices.ViewEntityUpdated();
             }
 
-            if (_thirdPersonPool.TryRemove(playerIndex, out var camera))
+            if (_thirdPersonPool.TryRemove(playerIndex, out var cameraHandle))
             {
-                camera.Despawn();
+                if (cameraHandle.IsValid && cameraHandle.Value != null)
+                {
+                    Core.Scheduler.NextWorldUpdate(() =>
+                    {
+                        // Revalidate before despawning
+                        if (cameraHandle.IsValid && cameraHandle.Value != null)
+                        {
+                            cameraHandle.Value.Despawn();
+                        }
+                    });
+                }
             }
 
             player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.deactivated"]}");
@@ -115,18 +136,28 @@ public partial class ThirdPerson
 
             camera.Teleport(initialPos, viewAngle, Vector.Zero);
 
+            // Store as CHandle for safe long-term reference
+            var handle = Core.EntitySystem.GetRefEHandle(camera);
+            _smoothThirdPersonPool.TryAdd(playerIndex, handle);
+
             // Set player's view entity to the camera on next tick
+            // CRITICAL: Revalidate all entities inside callback to prevent crashes
             Core.Scheduler.NextTick(() =>
             {
-                if (player?.Pawn?.CameraServices != null)
+                // Revalidate player, pawn and camera inside callback
+                if (player == null || !player.IsValid) return;
+                if (player.Pawn == null || !player.Pawn.IsValid) return;
+                if (player.Pawn.CameraServices == null) return;
+                if (!handle.IsValid || handle.Value == null)
                 {
-                    var cameraHandle = Core.EntitySystem.GetRefEHandle(camera);
-                    player.Pawn.CameraServices.ViewEntity.Raw = cameraHandle.Raw;
-                    player.Pawn.CameraServices.ViewEntityUpdated();
+                    _smoothThirdPersonPool.TryRemove(playerIndex, out _);
+                    return;
                 }
-            });
 
-            _smoothThirdPersonPool.TryAdd(playerIndex, camera);
+                var cameraHandle = Core.EntitySystem.GetRefEHandle(handle.Value);
+                player.Pawn.CameraServices.ViewEntity.Raw = cameraHandle.Raw;
+                player.Pawn.CameraServices.ViewEntityUpdated();
+            });
             
             player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.activated"]}");
 
@@ -139,9 +170,19 @@ public partial class ThirdPerson
                 player.Pawn.CameraServices.ViewEntityUpdated();
             }
 
-            if (_smoothThirdPersonPool.TryRemove(playerIndex, out var camera))
+            if (_smoothThirdPersonPool.TryRemove(playerIndex, out var cameraHandle))
             {
-                camera.Despawn();
+                if (cameraHandle.IsValid && cameraHandle.Value != null)
+                {
+                    Core.Scheduler.NextWorldUpdate(() =>
+                    {
+                        // Revalidate before despawning
+                        if (cameraHandle.IsValid && cameraHandle.Value != null)
+                        {
+                            cameraHandle.Value.Despawn();
+                        }
+                    });
+                }
             }
 
             player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.deactivated"]}");

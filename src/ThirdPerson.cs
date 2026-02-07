@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.Plugins;
 using SwiftlyS2.Shared.SchemaDefinitions;
@@ -17,8 +18,9 @@ public partial class ThirdPerson : BasePlugin {
   private Guid? _customCommandGuid = null;
 
   // Camera entity pools - thread-safe collections for managing active cameras
-  private readonly ConcurrentDictionary<int, CPointCamera> _thirdPersonPool = new();
-  private readonly ConcurrentDictionary<int, CPointCamera> _smoothThirdPersonPool = new();
+  // Using CHandle for safe long-term entity references
+  private readonly ConcurrentDictionary<int, CHandle<CPointCamera>> _thirdPersonPool = new();
+  private readonly ConcurrentDictionary<int, CHandle<CPointCamera>> _smoothThirdPersonPool = new();
 
   // Knife warning counter per player (limit to 3 warnings per player)
   private readonly ConcurrentDictionary<ulong, int> _knifeWarningCount = new();
@@ -79,40 +81,38 @@ public partial class ThirdPerson : BasePlugin {
   // Plugin cleanup - called when plugin unloads.
   // Removes all cameras, unregisters commands and event listeners.
   public override void Unload() {
-    // Unregister custom command
-    if (_customCommandGuid.HasValue)
-    {
-        Core.Command.UnregisterCommand(_customCommandGuid.Value);
-        _customCommandGuid = null;
-    }
+    // Unregister tick listener first to stop all ongoing updates
+    Core.Event.OnTick -= OnTick;
 
-    // Cleanup all cameras
+    // Unregister other event listeners
+    Core.Event.OnEntityTakeDamage -= OnEntityTakeDamage;
+    Core.Event.OnMapUnload -= OnMapUnload;
+
+    // Cleanup all cameras immediately to prevent memory corruption
     foreach (var kvp in _thirdPersonPool)
     {
-      if (kvp.Value.IsValid)
+      if (kvp.Value.IsValid && kvp.Value.Value != null)
       {
-        kvp.Value.Despawn();
+        kvp.Value.Value.Despawn();
       }
     }
     foreach (var kvp in _smoothThirdPersonPool)
     {
-      if (kvp.Value.IsValid)
+      if (kvp.Value.IsValid && kvp.Value.Value != null)
       {
-        kvp.Value.Despawn();
+        kvp.Value.Value.Despawn();
       }
     }
 
     _thirdPersonPool.Clear();
     _smoothThirdPersonPool.Clear();
 
-    // Unregister tick listener
-    Core.Event.OnTick -= OnTick;
-
-    // Unregister OnEntityTakeDamage listener
-    Core.Event.OnEntityTakeDamage -= OnEntityTakeDamage;
-
-    // Unregister OnMapUnload listener
-    Core.Event.OnMapUnload -= OnMapUnload;
+    // Unregister custom command last
+    if (_customCommandGuid.HasValue)
+    {
+        Core.Command.UnregisterCommand(_customCommandGuid.Value);
+        _customCommandGuid = null;
+    }
   }
 
   // Game tick handler - called every server frame.
@@ -134,32 +134,34 @@ public partial class ThirdPerson : BasePlugin {
     foreach (var kvp in _smoothThirdPersonPool)
     {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
-      var camera = kvp.Value;
+      var cameraHandle = kvp.Value;
 
-      if (player == null || !player.IsValid || camera == null || !camera.IsValid)
+      // Validate handle and entity before accessing
+      if (player == null || !player.IsValid || !cameraHandle.IsValid || cameraHandle.Value == null)
       {
-        SafeDespawn(camera);
+        SafeDespawn(cameraHandle);
         _smoothThirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
       }
 
-      UpdateCameraSmooth(camera, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight, Config.SmoothCameraSpeed);
+      UpdateCameraSmooth(cameraHandle.Value, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight, Config.SmoothCameraSpeed);
     }
 
     // Update default cameras
     foreach (var kvp in _thirdPersonPool)
     {
       var player = Core.PlayerManager.GetPlayer(kvp.Key); // kvp.Key is now player index
-      var camera = kvp.Value;
+      var cameraHandle = kvp.Value;
 
-      if (player == null || !player.IsValid || camera == null || !camera.IsValid)
+      // Validate handle and entity before accessing
+      if (player == null || !player.IsValid || !cameraHandle.IsValid || cameraHandle.Value == null)
       {
-        SafeDespawn(camera);
+        SafeDespawn(cameraHandle);
         _thirdPersonPool.TryRemove(kvp.Key, out _);
         continue;
       }
 
-      UpdateCamera(camera, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight);
+      UpdateCamera(cameraHandle.Value, player, Core, Config.ThirdPersonDistance, Config.ThirdPersonHeight);
     }
   }
 
@@ -173,21 +175,35 @@ public partial class ThirdPerson : BasePlugin {
 
     int playerIndex = player.PlayerID;
 
-    // Remove smooth camera
-    if (_smoothThirdPersonPool.TryRemove(playerIndex, out var smoothCamera))
+    // Remove smooth camera using scheduler for safety
+    if (_smoothThirdPersonPool.TryRemove(playerIndex, out var smoothCameraHandle))
     {
-      if (smoothCamera.IsValid)
+      if (smoothCameraHandle.IsValid && smoothCameraHandle.Value != null)
       {
-        smoothCamera.Despawn();
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+          // Revalidate before despawning
+          if (smoothCameraHandle.IsValid && smoothCameraHandle.Value != null)
+          {
+            smoothCameraHandle.Value.Despawn();
+          }
+        });
       }
     }
 
-    // Remove default camera
-    if (_thirdPersonPool.TryRemove(playerIndex, out var camera))
+    // Remove default camera using scheduler for safety
+    if (_thirdPersonPool.TryRemove(playerIndex, out var cameraHandle))
     {
-      if (camera.IsValid)
+      if (cameraHandle.IsValid && cameraHandle.Value != null)
       {
-        camera.Despawn();
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+          // Revalidate before despawning
+          if (cameraHandle.IsValid && cameraHandle.Value != null)
+          {
+            cameraHandle.Value.Despawn();
+          }
+        });
       }
     }
 

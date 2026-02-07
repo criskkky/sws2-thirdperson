@@ -170,56 +170,7 @@ public partial class ThirdPerson
         };
     }
 
-    // Checks if there's a wall in front of the player within specified distance.
-    // Returns true if a wall is detected, preventing third person activation to avoid model invisibility.
-    // Uses player origin to handle irregular walls at different heights.
-    private bool IsWallInFront(IPlayer player, float minWallDistance = 50f)
-    {
-        if (player?.Pawn?.AbsOrigin == null)
-            return false;
-
-        var pawn = player.Pawn;
-        Vector pawnPos = pawn.AbsOrigin ?? Vector.Zero;
-        
-        // Calculate forward direction from player's view angles (horizontal direction only, no pitch)
-        float yaw = pawn.V_angle.Yaw * (float)Math.PI / 180f;
-        var forwardDir = new Vector(
-            MathF.Cos(yaw),
-            MathF.Sin(yaw),
-            0  // Keep Z at 0 to trace horizontally (ignores floor/ceiling)
-        );
-        
-        // Use player origin (center of body) to detect walls at any height
-        // This handles irregular walls better than eye position alone
-        Vector startPos = pawnPos + new Vector(0, 0, 32f); // Mid-body height
-        Vector targetPos = startPos + forwardDir * 200f;
-        
-        // Perform ray trace using SimpleTrace
-        CGameTrace trace = new();
-        Core.Trace.SimpleTrace(
-            startPos,                                   // Start from player body center
-            targetPos,                                  // End at check distance forward
-            RayType_t.RAY_TYPE_LINE,                   // Use line ray for precise collision
-            RnQueryObjectSet.All,                      // Consider all objects
-            MaskTrace.Solid | MaskTrace.WorldGeometry | MaskTrace.Window, // Only solid walls, not players
-            0,                                         // interactExclude
-            0,                                         // interactAs
-            CollisionGroup.Default,                    // collision group
-            ref trace,                                 // Output trace result
-            pawn                                       // Filter out the player itself
-        );
-        
-        // Return true only if hit something VERY close using absolute distance
-        if (trace.DidHit)
-        {
-            float actualDistance = trace.Distance;
-            return actualDistance < minWallDistance;
-        }
-        
-        return false;
-    }
-
-    // Thread-safe spawn and despawn methods for camera entities
+    // Thread-safe spawn method for camera entities
     private CPointCamera? SafeSpawnPointCamera(string designerName)
     {
         var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
@@ -230,24 +181,106 @@ public partial class ThirdPerson
         }
         return null;
     }
-
-    private void SafeDespawn(CPointCamera? camera)
+    // Returns true if a wall is detected, preventing third person activation to avoid model invisibility.
+    // Uses bounding box traces to detect walls and obstacles in the direction the player is looking
+    private bool IsWallInFront(IPlayer player, float minWallDistance = 50f)
     {
-        if (camera != null && camera.IsValid)
+        if (player?.PlayerPawn?.AbsOrigin == null)
+            return false;
+
+        var pawn = player.PlayerPawn;
+        Vector pawnPos = pawn.AbsOrigin ?? Vector.Zero;
+        
+        // Calculate direction from player's eye angles (where they're actually looking)
+        float yaw = pawn.EyeAngles.Yaw * (float)Math.PI / 180f;
+        float pitch = pawn.EyeAngles.Pitch * (float)Math.PI / 180f;
+        
+        // Calculate 3D forward direction based on eye angles
+        var forwardDir = new Vector(
+            MathF.Cos(yaw) * MathF.Cos(pitch),
+            MathF.Sin(yaw) * MathF.Cos(pitch),
+            -MathF.Sin(pitch)
+        );
+        
+        Vector startPos = pawnPos + new Vector(0, 0, 64f); // Eye level height
+        Vector endPos = startPos + forwardDir * 40f;
+        
+        // Define a bounding box matching standard player hull size (32 units total, ±16 from center)
+        // This accurately represents player width for wall detection
+        BBox_t bounds = new()
         {
-            Core.Scheduler.NextWorldUpdate(() => camera.Despawn());
+            Mins = new Vector(-16f, -16f, -10f), // Standard player width and small height tolerance
+            Maxs = new Vector(16f, 16f, 10f)
+        };
+        
+        // Configure trace filter
+        var filter = new CTraceFilter(checkIgnoredEntities: true)
+        {
+            QueryShapeAttributes = new RnQueryShapeAttr_t
+            {
+                InteractsWith = MaskTrace.Solid | MaskTrace.WorldGeometry | MaskTrace.Window,
+                InteractsExclude = 0,
+                InteractsAs = 0,
+                CollisionGroup = CollisionGroup.Default,
+                ObjectSetMask = RnQueryObjectSet.All
+            }
+        };
+        
+        CGameTrace trace = new();
+        Core.Trace.TracePlayerBBox(startPos, endPos, bounds, filter, ref trace);
+        
+        if (trace.DidHit && trace.Distance < minWallDistance)
+            return true;
+        
+        // Additional check when looking up to detect low ceilings/obstacles above
+        if (pawn.EyeAngles.Pitch < -10f)
+        {
+            Vector upStart = pawnPos + new Vector(0, 0, 64f); // Eye level
+            Vector upEnd = upStart + new Vector(0, 0, 10f); // 10 units straight up
+            
+            BBox_t upBounds = new()
+            {
+                Mins = new Vector(-16f, -16f, 0),
+                Maxs = new Vector(16f, 16f, 32f)
+            };
+            
+            CGameTrace upTrace = new();
+            Core.Trace.TracePlayerBBox(upStart, upEnd, upBounds, filter, ref upTrace);
+            
+            if (upTrace.DidHit && upTrace.Distance < minWallDistance)
+                return true;
+        }
+        
+        return false;
+    }
+
+    // Thread-safe despawn method for camera entities using CHandle
+    // Schedules despawn in next world update and revalidates handle
+    private void SafeDespawn(CHandle<CPointCamera> cameraHandle)
+    {
+        if (cameraHandle.IsValid && cameraHandle.Value != null)
+        {
+            Core.Scheduler.NextWorldUpdate(() =>
+            {
+                // Revalidate handle before despawning
+                if (cameraHandle.IsValid && cameraHandle.Value != null)
+                {
+                    cameraHandle.Value.Despawn();
+                }
+            });
         }
     }
 
     // Cleanup all active cameras and restore normal view for all players
     // Used when the plugin is disabled via convar
+    // Uses scheduler for safe entity operations
     private void CleanupAllCameras()
     {
         // Cleanup smooth cameras
         foreach (var kvp in _smoothThirdPersonPool.ToList())
         {
             var player = Core.PlayerManager.GetPlayer(kvp.Key);
-            var camera = kvp.Value;
+            var cameraHandle = kvp.Value;
             
             // Restore player view
             if (player?.IsValid == true && player.Pawn?.CameraServices != null)
@@ -256,10 +289,17 @@ public partial class ThirdPerson
                 player.Pawn.CameraServices.ViewEntityUpdated();
             }
             
-            // Remove camera entity
-            if (camera?.IsValid == true)
+            // Remove camera entity using scheduler for safety
+            if (cameraHandle.IsValid && cameraHandle.Value != null)
             {
-                camera.Despawn();
+                Core.Scheduler.NextWorldUpdate(() =>
+                {
+                    // Revalidate before despawning
+                    if (cameraHandle.IsValid && cameraHandle.Value != null)
+                    {
+                        cameraHandle.Value.Despawn();
+                    }
+                });
             }
             
             _smoothThirdPersonPool.TryRemove(kvp.Key, out _);
@@ -269,7 +309,7 @@ public partial class ThirdPerson
         foreach (var kvp in _thirdPersonPool.ToList())
         {
             var player = Core.PlayerManager.GetPlayer(kvp.Key);
-            var camera = kvp.Value;
+            var cameraHandle = kvp.Value;
             
             // Restore player view
             if (player?.IsValid == true && player.Pawn?.CameraServices != null)
@@ -278,10 +318,17 @@ public partial class ThirdPerson
                 player.Pawn.CameraServices.ViewEntityUpdated();
             }
             
-            // Remove camera entity
-            if (camera?.IsValid == true)
+            // Remove camera entity using scheduler for safety
+            if (cameraHandle.IsValid && cameraHandle.Value != null)
             {
-                camera.Despawn();
+                Core.Scheduler.NextWorldUpdate(() =>
+                {
+                    // Revalidate before despawning
+                    if (cameraHandle.IsValid && cameraHandle.Value != null)
+                    {
+                        cameraHandle.Value.Despawn();
+                    }
+                });
             }
             
             _thirdPersonPool.TryRemove(kvp.Key, out _);
