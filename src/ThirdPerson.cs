@@ -119,7 +119,16 @@ public partial class ThirdPerson : BasePlugin {
   // Updates camera positions for all players in third-person mode.
   private void OnTick()
   {
-    if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
+    bool pluginEnabled = Core.ConVar.Find<bool>("thirdperson_enabled")?.Value == true;
+    
+    // If plugin is disabled but there are active cameras, clean them up
+    if (!pluginEnabled && (_thirdPersonPool.Count > 0 || _smoothThirdPersonPool.Count > 0))
+    {
+      CleanupAllCameras();
+      return;
+    }
+    
+    if (!pluginEnabled) return;
 
     // Update smooth cameras
     foreach (var kvp in _smoothThirdPersonPool)

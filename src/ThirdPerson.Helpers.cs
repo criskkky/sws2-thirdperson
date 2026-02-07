@@ -238,4 +238,53 @@ public partial class ThirdPerson
             Core.Scheduler.NextWorldUpdate(() => camera.Despawn());
         }
     }
+
+    // Cleanup all active cameras and restore normal view for all players
+    // Used when the plugin is disabled via convar
+    private void CleanupAllCameras()
+    {
+        // Cleanup smooth cameras
+        foreach (var kvp in _smoothThirdPersonPool.ToList())
+        {
+            var player = Core.PlayerManager.GetPlayer(kvp.Key);
+            var camera = kvp.Value;
+            
+            // Restore player view
+            if (player?.IsValid == true && player.Pawn?.CameraServices != null)
+            {
+                player.Pawn.CameraServices.ViewEntity.Raw = uint.MaxValue;
+                player.Pawn.CameraServices.ViewEntityUpdated();
+            }
+            
+            // Remove camera entity
+            if (camera?.IsValid == true)
+            {
+                camera.Despawn();
+            }
+            
+            _smoothThirdPersonPool.TryRemove(kvp.Key, out _);
+        }
+        
+        // Cleanup default cameras
+        foreach (var kvp in _thirdPersonPool.ToList())
+        {
+            var player = Core.PlayerManager.GetPlayer(kvp.Key);
+            var camera = kvp.Value;
+            
+            // Restore player view
+            if (player?.IsValid == true && player.Pawn?.CameraServices != null)
+            {
+                player.Pawn.CameraServices.ViewEntity.Raw = uint.MaxValue;
+                player.Pawn.CameraServices.ViewEntityUpdated();
+            }
+            
+            // Remove camera entity
+            if (camera?.IsValid == true)
+            {
+                camera.Despawn();
+            }
+            
+            _thirdPersonPool.TryRemove(kvp.Key, out _);
+        }
+    }
 }
