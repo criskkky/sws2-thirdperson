@@ -4,7 +4,7 @@ namespace ThirdPerson;
 
 [PluginMetadata( 
     Id = "ThirdPerson",
-    Version = "1.0.0",
+    Version = "1.0.1",
     Name = "ThirdPerson",
     Author = "criskkky",
     Description = "Third-person camera with smooth transitions and collision detection",
