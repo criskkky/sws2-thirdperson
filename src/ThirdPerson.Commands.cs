@@ -32,10 +32,14 @@ public partial class ThirdPerson
 
     private void HandleThirdPersonToggle(ICommandContext context)
     {
-        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true) return;
-
         var player = context.Sender;
         if (player == null) return;
+
+        if (Core.ConVar.Find<bool>("thirdperson_enabled")?.Value != true)
+        {
+            player.SendChat($"{Helper.ChatColors.Red}{Core.Localizer["tp.prefix"]}{Helper.ChatColors.Default} {Core.Localizer["tp.disabled"]}");
+            return;
+        }
 
         // Check permissions if permission is set
         if (!string.IsNullOrEmpty(Config.UseTpPermission) && !Core.Permission.PlayerHasPermission(player.SteamID, Config.UseTpPermission))

@@ -1,9 +1,10 @@
 {
-  "tp.prefix": "[TerceraPersona]",
+  "tp.prefix": "[ThirdPerson]",
   "tp.activated": "Vista en tercera persona activada.",
   "tp.deactivated": "Vista en tercera persona desactivada.",
   "tp.no_permission": "No tienes permiso para usar este comando.",
   "tp.must_be_alive": "Debes estar vivo para usar este comando.",
+  "tp.disabled": "El plugin está deshabilitado vía cvar.",
   "tp.damage_disabled": "Debes desactivar la vista en tercera persona para infligir daño.",
   "tp.knife_warning": "Los ataques a cuchillo pueden tener problemas en tercera persona.",
   "tp.not_ready": "No se puede crear la cámara - jugador no está listo.",

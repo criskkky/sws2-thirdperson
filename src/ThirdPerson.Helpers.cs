@@ -173,11 +173,18 @@ public partial class ThirdPerson
     // Thread-safe spawn method for camera entities
     private CPointCamera? SafeSpawnPointCamera(string designerName)
     {
-        var entity = Core.EntitySystem.CreateEntityByDesignerName<CEntityInstance>(designerName);
-        if (entity != null)
+        try
         {
-            entity.DispatchSpawn();
-            return entity as CPointCamera;
+            var camera = Core.EntitySystem.CreateEntityByDesignerName<CPointCamera>(designerName);
+            if (camera != null && camera.IsValid)
+            {
+                camera.DispatchSpawn();
+                return camera;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ThirdPerson] Error creating camera: {ex.Message}");
         }
         return null;
     }

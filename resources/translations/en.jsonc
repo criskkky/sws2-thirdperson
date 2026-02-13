@@ -4,6 +4,7 @@
   "tp.deactivated": "Third-person view deactivated.",
   "tp.no_permission": "You don't have permission to use this command.",
   "tp.must_be_alive": "You must be alive to use this command.",
+  "tp.disabled": "The plugin is currently disabled via cvar.",
   "tp.damage_disabled": "You must disable third-person view to deal damage.",
   "tp.knife_warning": "Knife attacks may have issues in third person.",
   "tp.not_ready": "Cannot create camera - player not ready.",
